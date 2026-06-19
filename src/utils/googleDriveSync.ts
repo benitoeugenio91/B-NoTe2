@@ -268,7 +268,7 @@ export async function syncDatabaseWithDrive(
 
     return { success: true, data: mergedDb };
   } catch (error: any) {
-    console.error('Drive Sync Error:', error);
+    console.warn('Drive Sync Error (Expected if unauthenticated):', error);
     return { success: false, error: error?.message || 'Помилка під час синхронізації з Google Диском.' };
   }
 }
