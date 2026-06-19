@@ -1,0 +1,56 @@
+@import url('https://fonts.googleapis.com/css2?family=Syne:wght@600;700;800&family=DM+Sans:wght@300;400;500;600;700&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --color-bg-base: #0a0f1e;
+  --color-bg-surface: #111827;
+  --color-bg-elevated: #1a2235;
+  --color-bg-border: #1e2d45;
+
+  --color-accent: #f97316;
+  --color-accent-hover: #ea6a0a;
+  
+  --font-display: "Syne", sans-serif;
+  --font-sans: "DM Sans", sans-serif;
+
+  --color-status-new: #3b82f6;
+  --color-status-diag: #8b5cf6;
+  --color-status-approve: #f59e0b;
+  --color-status-waiting: #6366f1;
+  --color-status-inwork: #f97316;
+  --color-status-done: #10b981;
+  --color-status-paid: #475569;
+
+  --color-tag-vip: #f59e0b;
+  --color-tag-problem: #ef4444;
+  --color-tag-prepay: #10b981;
+}
+
+:root {
+  --accent-glow: 0 0 20px rgba(249, 115, 22, 0.25);
+}
+
+body {
+  background-color: #0a0f1e;
+  color: #f1f5f9;
+  font-family: "DM Sans", sans-serif;
+}
+
+/* Custom scrollbars for industrial aesthetic */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: #0a0f1e;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #1e2d45;
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #f97316;
+}
