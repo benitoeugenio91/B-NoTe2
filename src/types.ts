@@ -120,6 +120,8 @@ export interface AppSettings {
   driveFolderId?: string;
   driveFileId?: string;
   autoBackupEnabled?: boolean;
+  driveApiKey?: string;
+  driveAccessToken?: string;
 }
 
 export interface DBBackupRecord {

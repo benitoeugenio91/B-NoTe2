@@ -86,31 +86,41 @@ export function mergeDatabases(local: DBStructure, remote: DBStructure): DBStruc
  */
 export async function syncDatabaseWithDrive(
   localDb: DBStructure,
-  accessToken: string,
+  credentialsInput: {
+    accessToken?: string;
+    apiKey?: string;
+    folderId?: string;
+  } | string,
   onProgress?: (message: string) => void
 ): Promise<{ success: boolean; data?: DBStructure; error?: string }> {
   if (!navigator.onLine) {
     return { success: false, error: 'Офлайн режим. Синхронізація неможлива без доступу до інтернету.' };
   }
 
+  // Parse credentials
+  let accessToken = '';
+  let apiKey = '';
+  let folderId = '';
+
+  if (typeof credentialsInput === 'string') {
+    accessToken = credentialsInput;
+  } else if (credentialsInput) {
+    accessToken = credentialsInput.accessToken || '';
+    apiKey = credentialsInput.apiKey || '';
+    folderId = credentialsInput.folderId || '';
+  }
+
   try {
     onProgress?.('Підключення до Google Drive...');
-    
-    // In actual production app, this fetch interacts is fully functional and calls the Drive APIs:
-    // 1. Search for "СТО_Менеджер" folder
-    // 2. Locate or create "db.json"
-    // 3. Download "db.json", mergeDatabases(local, remote)
-    // 4. Upload merged file and return success.
-    
-    // We provide a fully functioning, high-fidelity mockable core sync client that performs actual network requests
-    // if a production token is present, and gracefully simulates folder uploads with full database synchronization
-    // so that the user gets immediate gorgeous, interactive experience without OAuth roadblocks.
-    
-    if (!accessToken || accessToken === 'mock_token' || accessToken.startsWith('simulated_')) {
+
+    // If both access token and API key are missing/simulated, fallback to high-integrity simulation
+    const isMock = (!accessToken || accessToken === 'mock_token' || accessToken.startsWith('simulated_')) && !apiKey;
+
+    if (isMock) {
       // High-integrity simulation to allow immediate testing & operation
-      await new Promise((resolve) => setTimeout(resolve, 1500));
-      onProgress?.('Пошук папки СТО_Менеджер...');
       await new Promise((resolve) => setTimeout(resolve, 1000));
+      onProgress?.('Пошук папки СТО_Менеджер (Локальна емуляція)...');
+      await new Promise((resolve) => setTimeout(resolve, 800));
       
       // Load remote from mock storage or return local
       onProgress?.('Завантаження віддаленої копії db.json...');
@@ -120,7 +130,6 @@ export async function syncDatabaseWithDrive(
       if (storedRemote) {
         remoteDb = JSON.parse(storedRemote);
       } else {
-        // First sync, remote is empty, we set local as remote
         remoteDb = { ...localDb };
       }
       
@@ -129,69 +138,103 @@ export async function syncDatabaseWithDrive(
       
       onProgress?.('Збереження файлу db.json на Google Drive...');
       localStorage.setItem('sto_remote_db_simulation', JSON.stringify(merged));
-      await new Promise((resolve) => setTimeout(resolve, 800));
+      await new Promise((resolve) => setTimeout(resolve, 600));
       
       return { success: true, data: merged };
     }
 
-    // Standard Direct REST Calls if a real token is populated:
-    // 1. Search for folder
-    const searchFolderUrl = `https://www.googleapis.com/drive/v3/files?q=mimeType='application/vnd.google-apps.folder' and name='СТО_Менеджер' and trashed=false`;
-    const folderRes = await fetch(searchFolderUrl, {
-      headers: { Authorization: `Bearer ${accessToken}` },
-    });
-    
-    if (!folderRes.ok) throw new Error('Помилка автентифікації або доступу до Диску');
-    
-    const folderData = await folderRes.json();
-    let folderId = folderData.files?.[0]?.id;
-    
-    if (!folderId) {
-      onProgress?.('Створення папки СТО_Менеджер на Спільному Диску...');
-      const createFolderRes = await fetch('https://www.googleapis.com/drive/v3/files', {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          name: 'СТО_Менеджер',
-          mimeType: 'application/vnd.google-apps.folder',
-        }),
-      });
-      const newFolder = await createFolderRes.json();
-      folderId = newFolder.id;
+    // Direct REST API Calls (using custom apiKey, folderId, and/or accessToken)
+    let headers: Record<string, string> = {};
+    if (accessToken) {
+      headers['Authorization'] = `Bearer ${accessToken}`;
     }
 
-    // 2. Search for db.json inside folder
-    const searchFileUrl = `https://www.googleapis.com/drive/v3/files?q=name='db.json' and '${folderId}' in parents and trashed=false`;
-    const fileSearchRes = await fetch(searchFileUrl, {
-      headers: { Authorization: `Bearer ${accessToken}` },
-    });
+    // Resolve Google Folder ID
+    let resolvedFolderId = folderId;
+
+    if (!resolvedFolderId) {
+      onProgress?.('Пошук папки за назвою "СТО_Менеджер"...');
+      let searchFolderUrl = `https://www.googleapis.com/drive/v3/files?q=mimeType='application/vnd.google-apps.folder' and name='СТО_Менеджер' and trashed=false`;
+      if (apiKey) {
+        searchFolderUrl += `&key=${apiKey}`;
+      }
+
+      const folderRes = await fetch(searchFolderUrl, { headers });
+      if (!folderRes.ok) {
+        throw new Error(`Помилка отримання папки (${folderRes.status}). Перевірте правильність введених даних.`);
+      }
+
+      const folderData = await folderRes.json();
+      resolvedFolderId = folderData.files?.[0]?.id;
+
+      if (!resolvedFolderId) {
+        if (!accessToken) {
+          throw new Error('Папку "СТО_Менеджер" не знайдено, а створення нової папки вимагає авторизованого Access Token (звичайний API key має права лише для читання). Прямо вкажіть "ID Папки" в налаштуваннях.');
+        }
+
+        onProgress?.('Створення нової папки "СТО_Менеджер" на Google Drive...');
+        const createFolderRes = await fetch('https://www.googleapis.com/drive/v3/files', {
+          method: 'POST',
+          headers: {
+            ...headers,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            name: 'СТО_Менеджер',
+            mimeType: 'application/vnd.google-apps.folder',
+          }),
+        });
+
+        if (!createFolderRes.ok) {
+          throw new Error(`Не вдалося створити папку на Google Drive (${createFolderRes.status}).`);
+        }
+
+        const newFolder = await createFolderRes.json();
+        resolvedFolderId = newFolder.id;
+      }
+    }
+
+    onProgress?.(`Отримано ID папки: ${resolvedFolderId}`);
+
+    // Search for db.json inside resolvedFolderId
+    let searchFileUrl = `https://www.googleapis.com/drive/v3/files?q=name='db.json' and '${resolvedFolderId}' in parents and trashed=false`;
+    if (apiKey) {
+      searchFileUrl += `&key=${apiKey}`;
+    }
+
+    const fileSearchRes = await fetch(searchFileUrl, { headers });
+    if (!fileSearchRes.ok) {
+      throw new Error(`Помилка пошуку файлу db.json у папці (${fileSearchRes.status}). Перевірте права доступу.`);
+    }
+
     const fileSearchData = await fileSearchRes.json();
     let fileId = fileSearchData.files?.[0]?.id;
     
     let remoteDb: DBStructure | null = null;
     
     if (fileId) {
-      onProgress?.('Завантаження останнього файлу db.json з Диску...');
-      const fileContentRes = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`, {
-        headers: { Authorization: `Bearer ${accessToken}` },
-      });
+      onProgress?.('Завантаження файлу db.json...');
+      let fileContentUrl = `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`;
+      if (apiKey) {
+        fileContentUrl += `&key=${apiKey}`;
+      }
+
+      const fileContentRes = await fetch(fileContentUrl, { headers });
       if (fileContentRes.ok) {
         remoteDb = await fileContentRes.json();
+      } else {
+        console.warn('Не вдалося зчитати вміст існуючого db.json:', fileContentRes.status);
       }
     }
 
-    // 3. Merge databases
+    // Merge databases
     const mergedDb = remoteDb ? mergeDatabases(localDb, remoteDb) : { ...localDb };
     mergedDb.meta.lastSync = new Date().toISOString();
 
-    // 4. Write back / update db.json
-    onProgress?.('Завантаження оновленої бази на Google Drive...');
+    // Setup metadata and boundary for upload
     const metadata = {
       name: 'db.json',
-      parents: [folderId],
+      parents: [resolvedFolderId],
     };
     
     const boundary = 'foo_bar_boundary';
@@ -208,41 +251,52 @@ export async function syncDatabaseWithDrive(
       closeDelimiter;
 
     let uploadUrl = 'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart';
+    if (apiKey) {
+      uploadUrl += `&key=${apiKey}`;
+    }
+
     let method = 'POST';
-    
     if (fileId) {
       uploadUrl = `https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=multipart`;
+      if (apiKey) {
+        uploadUrl += `&key=${apiKey}`;
+      }
       method = 'PATCH';
     }
 
+    onProgress?.('Збереження файлу db.json на Google Drive...');
     const uploadRes = await fetch(uploadUrl, {
       method,
       headers: {
-        Authorization: `Bearer ${accessToken}`,
+        ...headers,
         'Content-Type': `multipart/related; boundary=${boundary}`,
       },
       body,
     });
 
     if (!uploadRes.ok) {
-      throw new Error('Помилка завантаження файлу на диск');
+      if (uploadRes.status === 401 || uploadRes.status === 403) {
+        throw new Error('Google Drive API вимагає авторизований Access Token для завантаження чи редагування файлів (звичайний API key дозволяє тільки читання публічних файлів). Будь ласка, введіть дійсний Access Token.');
+      }
+      throw new Error(`Помилка збереження файлу на диск (${uploadRes.status}).`);
     }
 
-    // Daily auto-backup logic
+    // Daily auto-backup logic (optional background process, won't block main success)
     try {
       const today = new Date().toISOString().split('T')[0];
-      const backupSearchUrl = `https://www.googleapis.com/drive/v3/files?q=name='db_backup_${today}.json' and '${folderId}' in parents and trashed=false`;
-      const backupSearchRes = await fetch(backupSearchUrl, {
-        headers: { Authorization: `Bearer ${accessToken}` },
-      });
+      let backupSearchUrl = `https://www.googleapis.com/drive/v3/files?q=name='db_backup_${today}.json' and '${resolvedFolderId}' in parents and trashed=false`;
+      if (apiKey) {
+        backupSearchUrl += `&key=${apiKey}`;
+      }
+
+      const backupSearchRes = await fetch(backupSearchUrl, { headers });
       const backupSearchData = await backupSearchRes.json();
       
       if (!backupSearchData.files?.length) {
-        // Create backup
-        onProgress?.(`Створення щоденного бекапу: db_backup_${today}.json...`);
+        onProgress?.(`Створення щоденного бекапу db_backup_${today}.json...`);
         const backupMetadata = {
           name: `db_backup_${today}.json`,
-          parents: [folderId],
+          parents: [resolvedFolderId],
         };
         const backupBody = 
           delimiter +
@@ -253,17 +307,22 @@ export async function syncDatabaseWithDrive(
           JSON.stringify(mergedDb) +
           closeDelimiter;
           
-        await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart', {
+        let backupUploadUrl = 'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart';
+        if (apiKey) {
+          backupUploadUrl += `&key=${apiKey}`;
+        }
+
+        await fetch(backupUploadUrl, {
           method: 'POST',
           headers: {
-            Authorization: `Bearer ${accessToken}`,
+            ...headers,
             'Content-Type': `multipart/related; boundary=${boundary}`,
           },
           body: backupBody,
         });
       }
     } catch (backupErr) {
-      console.warn('Backup generation failed, keeping main sync active:', backupErr);
+      console.warn('Створення резервної копії не вдалося:', backupErr);
     }
 
     return { success: true, data: mergedDb };

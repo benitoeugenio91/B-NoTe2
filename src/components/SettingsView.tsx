@@ -36,7 +36,9 @@ export default function SettingsView() {
     deleteTemplate
   } = useAppStore();
 
-  const [accessToken, setAccessToken] = useState('');
+  const [apiKey, setApiKey] = useState(settings.driveApiKey || '');
+  const [folderId, setFolderId] = useState(settings.driveFolderId || '');
+  const [accessToken, setAccessToken] = useState(settings.driveAccessToken || '');
   const [syncStatus, setSyncStatus] = useState('');
   const [pinLockOption, setPinLockOption] = useState(settings.pinCode || '');
   const [isPinEditing, setIsPinEditing] = useState(false);
@@ -47,6 +49,14 @@ export default function SettingsView() {
   // Sync operations
   const handleDriveSync = async () => {
     setSyncStatus('Підготовка до синхронізації...');
+    
+    // Automatically persist settings
+    await updateSettings({
+      driveApiKey: apiKey,
+      driveFolderId: folderId,
+      driveAccessToken: accessToken,
+    });
+
     const fullState = useAppStore.getState();
     const cleanLocalDb: DBStructure = {
       meta: {
@@ -64,12 +74,13 @@ export default function SettingsView() {
       settings: fullState.settings,
     };
 
-    // Use simulated or input access token
-    const token = accessToken || 'mock_token';
-
     const res = await syncDatabaseWithDrive(
       cleanLocalDb,
-      token,
+      {
+        accessToken: accessToken,
+        apiKey: apiKey,
+        folderId: folderId,
+      },
       (msg) => setSyncStatus(msg)
     );
 
@@ -83,6 +94,15 @@ export default function SettingsView() {
       setSyncStatus('');
       alert(`Помилка під час синхронізації: ${res.error}`);
     }
+  };
+
+  const handleSaveConnectionParams = async () => {
+    await updateSettings({
+      driveApiKey: apiKey,
+      driveFolderId: folderId,
+      driveAccessToken: accessToken,
+    });
+    alert('Параметри підключення до Google Drive успішно збережено!');
   };
 
   // Local backups JSON operations
@@ -181,28 +201,60 @@ export default function SettingsView() {
 
           <div className="space-y-3 pt-2">
             <div className="space-y-1">
-              <label className="text-2xs font-bold text-text-secondary uppercase">Користувацький Google Access Token (Опціонально)</label>
+              <label className="text-2xs font-bold text-text-secondary uppercase">Google Drive API Key (Ключ API)</label>
               <input
-                type="text"
-                placeholder="Введіть oauth access token або залиште пустим для тесту"
-                value={accessToken}
-                onChange={(e) => setAccessToken(e.target.value)}
+                type="password"
+                placeholder="Введіть ваш Google API Key"
+                value={apiKey}
+                onChange={(e) => setApiKey(e.target.value)}
                 className="w-full bg-bg-base border border-bg-border text-xs rounded p-2 text-white outline-none focus:border-accent"
               />
             </div>
 
-            <div className="flex items-center space-x-3.5">
+            <div className="space-y-1">
+              <label className="text-2xs font-bold text-text-secondary uppercase">ID Папки Google Drive (Folder ID)</label>
+              <input
+                type="text"
+                placeholder="Введіть ID публічної папки з Google Drive"
+                value={folderId}
+                onChange={(e) => setFolderId(e.target.value)}
+                className="w-full bg-bg-base border border-bg-border text-xs rounded p-2 text-white outline-none focus:border-accent"
+              />
+            </div>
+
+            <div className="space-y-1">
+              <label className="text-2xs font-bold text-text-secondary uppercase">Google Access Token (Для доступу на запис)</label>
+              <input
+                type="password"
+                placeholder="Введіть дійсний OAuth Access Token (Bearer)"
+                value={accessToken}
+                onChange={(e) => setAccessToken(e.target.value)}
+                className="w-full bg-bg-base border border-bg-border text-xs rounded p-2 text-white outline-none focus:border-accent"
+              />
+              <p className="text-[10px] text-text-secondary">
+                Примітка: для читання публічної папки достатньо ввести API Key та ID Папки. Для запису (синхронізації нових даних) Google вимагає Access Token.
+              </p>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-3 pt-1">
+              <button
+                onClick={handleSaveConnectionParams}
+                className="px-4 py-2 bg-bg-base hover:bg-bg-base-hover text-white border border-bg-border text-xs rounded-xl transition inline-flex items-center space-x-1.5 cursor-pointer"
+              >
+                <span>Зберегти параметри</span>
+              </button>
+
               <button
                 onClick={handleDriveSync}
-                className="px-4 py-2.5 bg-accent hover:bg-accent-hover text-bg-base font-black text-xs rounded-xl transition inline-flex items-center space-x-1.5 cursor-pointer"
+                className="px-4 py-2 bg-accent hover:bg-accent-hover text-bg-base font-black text-xs rounded-xl transition inline-flex items-center space-x-1.5 cursor-pointer"
               >
                 <RefreshCw className="w-4 h-4" />
-                <span>Синхронізувати зараз</span>
+                <span>Синхронізувати</span>
               </button>
 
               {settings.googleDriveConnected && (
                 <span className="text-[10px] text-emerald-400 font-bold bg-emerald-500/10 border border-emerald-500/20 px-2 py-1 rounded">
-                  Хмару підключено
+                  Підключено
                 </span>
               )}
             </div>

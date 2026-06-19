@@ -1,0 +1,10 @@
+<svg width="192" height="192" viewBox="0 0 192 192" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="192" height="192" rx="40" fill="#111318"/>
+  <circle cx="96" cy="96" r="64" fill="#ffc107" fill-opacity="0.1" stroke="#ffc107" stroke-width="4"/>
+  <!-- Gear SVG -->
+  <path d="M96 52C71.7 52 52 71.7 52 96C52 120.3 71.7 140 96 140C120.3 140 140 120.3 140 96C140 71.7 120.3 52 96 52ZM96 128C78.3 128 64 113.7 64 96C64 78.3 78.3 64 96 64C113.7 64 128 78.3 128 96C128 113.7 113.7 128 96 128Z" fill="#ffc107"/>
+  <!-- Wrench SVG -->
+  <path d="M118.5 73.5L88 104L73.5 89.5L104 59L118.5 73.5Z" fill="#ffffff"/>
+  <path d="M78.5 113.5L68 124L58 114L68.5 103.5L78.5 113.5Z" fill="#ffffff"/>
+  <circle cx="114" cy="78" r="8" fill="#ffc107"/>
+</svg>

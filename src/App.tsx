@@ -86,7 +86,11 @@ export default function App() {
         settings: fullState.settings,
       };
 
-      const res = await syncDatabaseWithDrive(cleanLocalDb, 'mock_token');
+      const res = await syncDatabaseWithDrive(cleanLocalDb, {
+        accessToken: fullState.settings.driveAccessToken,
+        apiKey: fullState.settings.driveApiKey,
+        folderId: fullState.settings.driveFolderId
+      });
       if (res.success && res.data) {
         await importFullData(res.data);
         console.log('Silent sync completed. Local IndexedDB merged.');

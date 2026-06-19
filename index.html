@@ -3,9 +3,21 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>My Google AI Studio App</title>
+    <title>СТО Менеджер</title>
+    <link rel="manifest" href="/manifest.json" />
+    <meta name="theme-color" content="#ffc107" />
+    <link rel="icon" type="image/svg+xml" href="/icon-192.svg" />
+    <script>
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register('/sw.js')
+            .then(reg => console.log('PWA ServiceWorker registered successfully:', reg))
+            .catch(err => console.error('PWA ServiceWorker registration failed:', err));
+        });
+      }
+    </script>
   </head>
-  <body>
+  <body class="bg-bg-base text-white">
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
